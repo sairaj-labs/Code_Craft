@@ -1,0 +1,55 @@
+name: Full CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v2
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: 16
+
+    - name: Install Dependencies (Backend)
+      working-directory: ./backend
+      run: npm install
+
+    - name: Run Backend Tests
+      working-directory: ./backend
+      run: npm test
+
+    - name: Install Dependencies (Frontend)
+      working-directory: ./frontend
+      run: npm install
+
+    - name: Run Frontend Tests
+      working-directory: ./frontend
+      run: npm test
+
+    - name: Docker Login to Amazon ECR
+      env:
+        AWS_REGION: eu-north-1
+        ECR_REGISTRY: 242201298951.dkr.ecr.your-aws-region.amazonaws.com
+      run: |
+        aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+
+    - name: Build Docker Image
+      run: |
+        docker build -t my-app .
+
+    - name: Tag Docker Image
+      run: |
+        docker tag my-app:latest $ECR_REGISTRY/my-app:latest
+
+    - name: Push Docker Image to ECR
+      run: |
+        docker push $ECR_REGISTRY/my-app:latest
